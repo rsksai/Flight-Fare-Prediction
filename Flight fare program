@@ -1,0 +1,197 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+import matplotlib
+matplotlib.rcParams['figure.figsize'] = (20,10)
+import warnings
+warnings.filterwarnings('ignore')
+
+fare = pd.read_excel('flight_fare.xlsx')
+fare.head(61)
+
+fare=fare[::61]
+fare
+fare.info()
+fare.isnull().sum()
+fare['Route'] = fare['Route'].fillna(fare['Route'].mode()[0])
+fare['Total_Stops'] = fare['Total_Stops'].fillna(fare['Total_Stops'].mode()[0])
+
+fare=fare.drop(['Date_of_Journey','Route','Arrival_Time','Dep_Time','Additional_Info'],axis=1)
+fare.isnull().sum()
+fare.head(5)
+
+fare['Total_Stops'].value_counts()
+plt.figure(figsize=(6,6))
+sns.countplot(fare['Source'])
+plt.show()
+
+plt.figure(figsize=(30,10))
+sns.barplot(x="Airline",y='Price', data=fare)
+plt.show()
+
+plt.figure(figsize=(6,6))
+sns.distplot(fare['Price'])
+plt.show()
+
+fare['Price'].skew()
+
+fare['Price'].describe()
+
+plt.figure(figsize=(6,6))
+sns.barplot(x="Source",y='Price', data=fare)
+plt.show()
+
+plt.figure(figsize=(6,6))
+sns.barplot(x="Destination",y='Price', data=fare)
+plt.show()
+
+plt.figure(figsize=(6,6))
+sns.barplot(x="Total_Stops",y='Price', data=fare)
+plt.show()
+
+# Time taken by plane to reach destination is called Duration
+# It is the differnce between Departure Time and Arrival time
+
+
+# Assigning and converting Duration column into list
+duration = list(fare["Duration"])
+
+for i in range(len(duration)):
+    if len(duration[i].split()) != 2:    # Check if duration contains only hour or mins
+        if "h" in duration[i]:
+            duration[i] = duration[i].strip() + " 0m"   # Adds 0 minute
+        else:
+            duration[i] = "0h " + duration[i]           # Adds 0 hour
+
+duration_hours = []
+duration_mins = []
+for i in range(len(duration)):
+    duration_hours.append(int(duration[i].split(sep = "h")[0]))    # Extract hours from duration
+    duration_mins.append(int(duration[i].split(sep = "m")[0].split()[-1]))   # Extracts only minutes from duration
+    
+    # Adding duration_hours and duration_mins list to train_data dataframe
+
+fare["Duration_hours"] = duration_hours
+fare["Duration_mins"] = duration_mins
+
+fare=fare.drop(['Duration'],axis=1)
+
+fare.replace({'Total_Stops':{'non-stop':0,'1 stop':1,'2 stops':2,'3 stops':3,'4 stops':4}},inplace=True)
+
+# As Source, Airline, Destination is Nominal Categorical data we will perform OneHotEncoding
+
+Airline = fare[["Airline"]]
+
+Airline = pd.get_dummies(Airline, drop_first= True)
+
+
+Source = fare[["Source"]]
+
+Source = pd.get_dummies(Source, drop_first= True)
+
+
+Destination = fare[["Destination"]]
+
+Destination = pd.get_dummies(Destination, drop_first= True)
+
+# Concatenate dataframe --> fare + Airline + Source + Destination
+
+fare = pd.concat([fare, Airline, Source, Destination], axis = 1)
+
+fare=fare.drop(['Airline','Source','Destination'],axis=1)
+
+fare.head(5)
+
+plt.figure(figsize=(20,20))
+sns.heatmap(fare.corr(),annot=True)
+
+x=fare.drop('Price',axis=1)
+y=fare['Price']
+
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test = train_test_split(x,y,test_size=.20, random_state=0)
+
+# Scaling Data
+
+from sklearn.preprocessing import StandardScaler
+sc = StandardScaler()
+x_train = sc.fit_transform(x_train)
+x_test = sc.transform(x_test)
+
+# Model Training and Testing
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import AdaBoostRegressor,GradientBoostingRegressor,RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from xgboost import XGBRFRegressor
+
+lr=LinearRegression()
+
+knn = KNeighborsRegressor(n_neighbors=10)
+
+dt = DecisionTreeRegressor(max_depth = 3)
+
+rf = RandomForestRegressor(max_depth = 3, n_estimators=500)
+
+gbr = GradientBoostingRegressor(max_depth=2, n_estimators=100, learning_rate =.2)
+
+# Testing with linear regression
+lr = LinearRegression()
+lr.fit(x_train,y_train)
+
+y_pred = lr.predict(x_test)
+from sklearn.metrics import r2_score
+r1 = r2_score(y_test,y_pred)
+r1
+
+# Testing with KNeighborsRegressor
+knn = KNeighborsRegressor(n_neighbors=10)
+knn.fit(x_train,y_train)
+
+y_pred = knn.predict(x_test)
+from sklearn.metrics import r2_score
+r2 = r2_score(y_test,y_pred)
+r2
+
+# Testing with DecisionTreeRegressor
+dt = DecisionTreeRegressor(max_depth = 3)
+dt.fit(x_train,y_train)
+
+y_pred = dt.predict(x_test)
+from sklearn.metrics import r2_score
+r3 = r2_score(y_test,y_pred)
+r3
+
+# Testing with RandomForestRegressor
+rf = RandomForestRegressor(max_depth = 3, n_estimators=500)
+rf.fit(x_train,y_train)
+
+y_pred = rf.predict(x_test)
+from sklearn.metrics import r2_score
+r4 = r2_score(y_test,y_pred)
+print("accuracy: ",r4*100,'%')
+
+# Testing with GradientBoostingRegressor
+gbr = GradientBoostingRegressor(max_depth=2, n_estimators=100, learning_rate =.2)
+gbr.fit(x_train,y_train)
+
+y_pred = gbr.predict(x_test)
+from sklearn.metrics import r2_score
+r6 = r2_score(y_test,y_pred)
+print("accuracy: ",r6*100,'%')
+
+# Model Results
+metric_results= {'Model': ['linear Regression', 'KNeighbors', 'Decision Tree','RandomForest','GradientBoosting'], 
+                 'R Square': [r1, r2, r3,r4,r6]}
+metrics= pd.DataFrame(metric_results)
+metrics
+
+prediction= pd.DataFrame({'actual Price': y_test, 'predicted Price': y_pred})
+sns.relplot(data=prediction, x='actual Price', y='predicted Price')
+
+from sklearn import metrics
+print('MAE:', metrics.mean_absolute_error(y_test, y_pred))
+print('MSE:', metrics.mean_squared_error(y_test, y_pred))
+print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
